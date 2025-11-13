@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Upload, Loader2, MapPin } from "lucide-react";
-import Skeleton from "react-loading-skeleton";
+import { Upload, Loader2, MapPin, LogOut } from "lucide-react";
 import "react-loading-skeleton/dist/skeleton.css";
+import { useNavigate } from "react-router-dom";
+import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
+
 
 export default function App() {
   const [file, setFile] = useState(null);
@@ -16,6 +18,10 @@ export default function App() {
   const [openSteps, setOpenSteps] = useState({ 1: false, 2: false, 3: false, 4: false });
   const [streamingRoadmap, setStreamingRoadmap] = useState(false);
   const [hasStreamed, setHasStreamed] = useState(false);
+  const [showResults, setShowResults] = useState(false);
+
+  const [company, setCompany] = useState("");
+  const navigate = useNavigate();
 
   const stepRefs = {
     1: useRef(null),
@@ -72,6 +78,12 @@ export default function App() {
     return finalElements;
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    localStorage.removeItem("userId");
+    navigate("/login");
+  };
   const scrollToStep = (step) => {
     const container = scrollContainerRef.current;
     const el = stepRefs[step]?.current;
@@ -100,19 +112,23 @@ export default function App() {
       return;
     }
 
-    setUserId(storedUserId); // optional if you want state to match
+    setUserId(storedUserId);
 
     setLoading(true);
     setResults({});
+    setHasStreamed(false);
     setStreamingText("");
     setStreamingRoadmap(false);
-    setOpenSteps({ 1: false, 2: false, 3: false, 4: false });
+    setOpenSteps({ 1: true, 2: true, 3: true, 4: true });
+    setShowResults(true);
 
     const formData = new FormData();
     formData.append("file", file);
     formData.append("target_role", targetRole);
     formData.append("location", location);
     formData.append("user_id", storedUserId); // send user ID from signup/login
+    formData.append("company", company);
+
 
     try {
       const res = await fetch("http://localhost:8000/analyze/", {
@@ -140,6 +156,9 @@ export default function App() {
           try {
             const json = JSON.parse(data);
             setResults((prev) => ({ ...prev, ...json }));
+            if (json.resume || json.gaps || json.courses) {
+              setShowResults(true);
+            }
 
             if (json.resume) setOpenSteps((prev) => ({ ...prev, 1: true }));
             if (json.gaps) setOpenSteps((prev) => ({ ...prev, 2: true }));
@@ -195,100 +214,243 @@ export default function App() {
 
   const showStreamButton = results.resume && results.gaps && results.courses && !streamingRoadmap;
 
+  const LoadingSkeleton = () => (
+    <div className="flex flex-col gap-2 animate-pulse">
+      <div className="h-5 w-3/5 bg-gray-700 rounded"></div>
+      <div className="h-4 w-11/12 bg-gray-700 rounded"></div>
+      <div className="h-4 w-10/12 bg-gray-700 rounded"></div>
+      <div className="h-4 w-9/12 bg-gray-700 rounded"></div>
+      <div className="h-4 w-7/12 bg-gray-700 rounded"></div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100 flex flex-col overflow-hidden">
       {/* Header */}
-      <header className="p-6 bg-gradient-to-r from-indigo-800 via-purple-800 to-pink-700 shadow-lg rounded-b-3xl text-center">
-        <h1 className="text-3xl font-bold">AI Career Mentor</h1>
-        <p className="text-gray-300 mt-1">
-          Personalized AI-powered career GPS for your next career move
-        </p>
+      <header className="relative p-6 bg-gradient-to-r from-purple-700 via-purple-800 to-indigo-900 shadow-lg rounded-b-3xl text-center">
+        <div>
+          <h1 className="text-3xl font-bold text-purple-100">AI Career Mentor</h1>
+          {/* <p className="text-purple-200 mt-1">
+            Personalized AI-powered career GPS for your next career move
+          </p> */}
+        </div>
+
+        <button
+          onClick={handleLogout}
+          className="absolute top-5 right-6 flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-xl hover:bg-purple-700 transition shadow-md"
+        >
+          <LogOut className="w-4 h-4" />
+          Logout
+        </button>
       </header>
 
       {/* Main */}
-      <main className="flex flex-1 w-full h-[calc(100vh-80px)] gap-6 px-6 py-6 overflow-hidden">
-        {/* Sidebar */}
-        <div className="flex-none w-[340px] bg-gray-800 p-6 rounded-2xl shadow-lg flex flex-col gap-6 h-full">
-          <h2 className="text-xl font-semibold text-indigo-400">Your Info</h2>
+      <main className="flex flex-1 w-full h-[calc(100vh-80px)] px-6 py-6 overflow-hidden">
 
-          <label className="cursor-pointer flex flex-col items-center border-2 border-dashed border-gray-600 p-6 rounded-xl hover:border-indigo-400 transition text-center">
-            <Upload className="w-8 h-8 text-indigo-400 mb-2" />
-            <span>{file ? file.name : "Click to upload resume (PDF)"}</span>
-            <input type="file" accept="application/pdf" className="hidden" onChange={(e) => setFile(e.target.files[0])} />
-          </label>
+        {!showResults ? (
+          // ------------------------------
+          // Centered pre-search layout
+          // ------------------------------
+          <div className="flex flex-1 items-center justify-center">
+            <div className="bg-gray-800 p-10 rounded-2xl shadow-xl w-full max-w-md flex flex-col gap-6">
+              <h2 className="text-2xl font-semibold text-indigo-400 text-center">Your Info</h2>
 
-          <input
-            type="text"
-            placeholder="Target Role"
-            value={targetRole}
-            onChange={(e) => setTargetRole(e.target.value)}
-            className="w-full p-3 rounded-xl bg-gray-900 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-          />
+              <label className="cursor-pointer flex flex-col items-center border-2 border-dashed border-gray-600 p-6 rounded-xl hover:border-indigo-400 transition text-center">
+                <Upload className="w-8 h-8 text-indigo-400 mb-2" />
+                <span>{file ? file.name : "Click to upload resume (PDF)"}</span>
+                <input type="file" accept="application/pdf" className="hidden" onChange={(e) => setFile(e.target.files[0])} />
+              </label>
 
-          <div className="flex items-center gap-2">
-            <MapPin className="w-5 h-5 text-indigo-400" />
-            <input
-              type="text"
-              placeholder="Location (optional)"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              className="flex-1 p-3 rounded-xl bg-gray-900 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-            />
-          </div>
+              <input
+                type="text"
+                placeholder="Target Role"
+                value={targetRole}
+                onChange={(e) => setTargetRole(e.target.value)}
+                className="w-full p-3 rounded-xl bg-gray-900 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              />
 
-          <button
-            onClick={handleSubmit}
-            disabled={loading}
-            className="w-full bg-indigo-600 hover:bg-indigo-700 transition py-3 rounded-xl font-semibold flex items-center justify-center gap-2"
-          >
-            {loading && <Loader2 className="animate-spin w-5 h-5" />}
-            {loading ? `Analyzing${dots}` : "Generate Roadmap"}
-          </button>
+              <input
+                type="text"
+                placeholder="Company (optional)"
+                value={company}
+                onChange={(e) => setCompany(e.target.value)}
+                className="w-full p-3 rounded-xl bg-gray-900 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              />
 
-          {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
-        </div>
+              <div className="flex items-center gap-2">
+                <MapPin className="w-5 h-5 text-indigo-400" />
+                <input
+                  type="text"
+                  placeholder="Location (optional)"
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  className="flex-1 p-3 rounded-xl bg-gray-900 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                />
+              </div>
 
-        {/* Results */}
-        <div ref={scrollContainerRef} className="flex-1 min-w-0 flex flex-col gap-4 overflow-y-auto h-full pr-4 scroll-smooth">
-          <AccordionStep
-            ref={stepRefs[1]}
-            step={1}
-            title="Extract Resume"
-            content={loading ? <Skeleton count={5} /> : parseOllamaOutput(results.resume) || "Waiting for resume extraction..."}
-            open={openSteps[1]}
-            toggle={() => toggleStep(1)}
-          />
-          <AccordionStep
-            ref={stepRefs[2]}
-            step={2}
-            title="Skill Gaps"
-            content={loading ? <Skeleton count={5} /> : parseOllamaOutput(results.gaps) || "Waiting for skill gap analysis..."}
-            open={openSteps[2]}
-            toggle={() => toggleStep(2)}
-          />
-          <AccordionStep
-            ref={stepRefs[3]}
-            step={3}
-            title="Courses"
-            content={loading ? <Skeleton count={5} /> : parseOllamaOutput(results.courses) || "Waiting for course suggestions..."}
-            open={openSteps[3]}
-            toggle={() => toggleStep(3)}
-          />
-          <AccordionStep
-            ref={stepRefs[4]}
-            step={4}
-            title="Career Roadmap"
-            content={loading ? <Skeleton count={5} /> : parseOllamaOutput(streamingText) || (streamingRoadmap ? "Streaming..." : "Click 'Stream Roadmap' to start...")}
-            open={openSteps[4]}
-            toggle={() => toggleStep(4)}
-            extraButton={showStreamButton && (
-              <button onClick={handleStreamRoadmap} disabled={!results.resume || hasStreamed} className="bg-green-600 hover:bg-green-700 rounded-lg py-2 px-4 mb-3 font-semibold">
-                Stream Roadmap
+              <button
+                onClick={handleSubmit}
+                disabled={loading}
+                className="w-full bg-indigo-600 hover:bg-indigo-700 transition py-3 rounded-xl font-semibold flex items-center justify-center gap-2"
+              >
+                {loading && <Loader2 className="animate-spin w-5 h-5" />}
+                {loading ? `Analyzing${dots}` : "Generate Roadmap"}
               </button>
-            )}
-          />
-          <div ref={endRef} />
-        </div>
+
+              {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+            </div>
+          </div>
+        ) : (
+          // ------------------------------
+          // Existing sidebar + results layout
+          // ------------------------------
+          <div className="flex flex-1 gap-6">
+            {/* Sidebar */}
+            <div className="flex-none w-[340px] bg-gray-800 p-6 rounded-2xl shadow-lg flex flex-col gap-6 h-full">
+              <h2 className="text-xl font-semibold text-indigo-400">Your Info</h2>
+
+              <label className="cursor-pointer flex flex-col items-center border-2 border-dashed border-gray-600 p-6 rounded-xl hover:border-indigo-400 transition text-center">
+                <Upload className="w-8 h-8 text-indigo-400 mb-2" />
+                <span>{file ? file.name : "Click to upload resume (PDF)"}</span>
+                <input type="file" accept="application/pdf" className="hidden" onChange={(e) => setFile(e.target.files[0])} />
+              </label>
+
+              <input
+                type="text"
+                placeholder="Target Role"
+                value={targetRole}
+                onChange={(e) => setTargetRole(e.target.value)}
+                className="w-full p-3 rounded-xl bg-gray-900 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              />
+
+              <input
+                type="text"
+                placeholder="Company (optional)"
+                value={company}
+                onChange={(e) => setCompany(e.target.value)}
+                className="w-full p-3 rounded-xl bg-gray-900 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              />
+
+              <div className="flex items-center gap-2">
+                <MapPin className="w-5 h-5 text-indigo-400" />
+                <input
+                  type="text"
+                  placeholder="Location (optional)"
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  className="flex-1 p-3 rounded-xl bg-gray-900 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                />
+              </div>
+
+              <button
+                onClick={handleSubmit}
+                disabled={loading}
+                className="w-full bg-indigo-600 hover:bg-indigo-700 transition py-3 rounded-xl font-semibold flex items-center justify-center gap-2"
+              >
+                {loading && <Loader2 className="animate-spin w-5 h-5" />}
+                {loading ? `Analyzing${dots}` : "Generate Roadmap"}
+              </button>
+
+              {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
+            </div>
+
+            {/* Results */}
+            <SkeletonTheme baseColor="#2b2b2b" highlightColor="#3a3a3a" duration={1.2}>
+              <div
+                ref={scrollContainerRef}
+                className="flex-1 min-w-0 flex flex-col gap-4 overflow-y-auto h-full pr-4 scroll-smooth"
+              >
+                <AccordionStep
+                  ref={stepRefs[1]}
+                  step={1}
+                  title="Extract Resume"
+                  content={loading ? <div className="space-y-3 animate-pulse">
+                    <Skeleton height={20} width="60%" />
+                    <Skeleton height={12} width="90%" />
+                    <Skeleton height={12} width="85%" />
+                    <Skeleton height={12} width="80%" />
+                    <Skeleton height={12} width="70%" />
+                  </div> : parseOllamaOutput(results.resume) || "Waiting for resume extraction..."}
+                  open={openSteps[1]}
+                  toggle={() => toggleStep(1)}
+                />
+                <AccordionStep
+                  ref={stepRefs[2]}
+                  step={2}
+                  title="Skill Gaps"
+                  content={loading ? <div className="space-y-3 animate-pulse">
+                    <Skeleton height={20} width="60%" />
+                    <Skeleton height={12} width="90%" />
+                    <Skeleton height={12} width="85%" />
+                    <Skeleton height={12} width="80%" />
+                    <Skeleton height={12} width="70%" />
+                  </div> : parseOllamaOutput(results.gaps) || "Waiting for skill gap analysis..."}
+                  open={openSteps[2]}
+                  toggle={() => toggleStep(2)}
+                />
+                <AccordionStep
+                  ref={stepRefs[3]}
+                  step={3}
+                  title="Courses"
+                  content={loading ? <div className="space-y-3 animate-pulse">
+                    <Skeleton height={20} width="60%" />
+                    <Skeleton height={12} width="90%" />
+                    <Skeleton height={12} width="85%" />
+                    <Skeleton height={12} width="80%" />
+                    <Skeleton height={12} width="70%" />
+                  </div> : parseOllamaOutput(results.courses) || "Waiting for course suggestions..."}
+                  open={openSteps[3]}
+                  toggle={() => toggleStep(3)}
+                />
+                <AccordionStep
+                  ref={stepRefs[4]}
+                  step={4}
+                  title="Career Roadmap"
+                  content={loading ? (
+                    <div className="space-y-3 animate-pulse">
+                      <Skeleton height={20} width="60%" />
+
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {parseOllamaOutput(streamingText) || (streamingRoadmap ? (
+                        <div className="flex items-center gap-2 animate-pulse">
+                          <span className="h-4 w-4 bg-indigo-400 rounded-full animate-bounce" />
+                          <span>Streaming roadmap...</span>
+                        </div>
+                      ) : "")}
+                    </div>
+                  )}
+                  open={openSteps[4]}
+                  toggle={() => toggleStep(4)}
+                  extraButton={
+                    showStreamButton && (
+                      <button
+                        onClick={handleStreamRoadmap}
+                        disabled={!results.resume || hasStreamed || streamingRoadmap}
+                        className={`
+          w-full flex justify-center items-center gap-3 py-3 rounded-xl font-semibold
+          text-white transition-all duration-300
+          ${streamingRoadmap ? "bg-gradient-to-r from-purple-600 via-indigo-700 to-indigo-900 cursor-not-allowed animate-pulse" : "bg-gradient-to-r from-indigo-600 via-purple-700 to-purple-900 hover:scale-105 hover:shadow-lg"}
+        `}
+                      >
+                        {streamingRoadmap ? (
+                          <>
+                            <Loader2 className="animate-spin w-5 h-5 text-white" />
+                            Streaming...
+                          </>
+                        ) : (
+                          "Stream Roadmap"
+                        )}
+                      </button>
+                    )
+                  }
+                />
+                <div ref={endRef} />
+              </div>
+            </SkeletonTheme>
+          </div>
+        )}
       </main>
     </div>
   );

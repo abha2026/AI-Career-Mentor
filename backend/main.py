@@ -183,31 +183,89 @@ async def login(user_id: str = Form(...), password: str = Form(...)):
 
 # ---------------- RESUME ANALYSIS ----------------
 @app.post("/analyze/")
-async def analyze_resume(file: UploadFile, target_role: str = Form(...), user_id: str = Form(...)):
+async def analyze_resume(
+    file: UploadFile,
+    target_role: str = Form(...),
+    company: str = Form(""),
+    location: str = Form(""),
+    user_id: str = Form(...)
+):
     if not user_id:
         raise HTTPException(status_code=400, detail="user_id required")
+
+    # Extract text from PDF
     pdf = PdfReader(file.file)
     pages = [p.extract_text() for p in pdf.pages if p.extract_text()]
     resume_text = "\n\n".join(pages)
+
+    # Chunking and embedding
     chunks = chunk_text(resume_text, chunk_size=350, overlap=50)
     resume_id = get_hash(file.filename + str(time.time()))
     upsert_chunks(user_id, resume_id, file.filename, chunks)
     cleanup_old_resumes(user_id, keep_last=3)
-    relevant_chunks = semantic_search_user(f"skills and experiences relevant to {target_role}", user_id, top_k=8)
+
+    # Build a rich search query that includes role, company, and location
+    query = f"skills and experiences relevant to {target_role}"
+    if company:
+        query += f" at {company}"
+    if location:
+        query += f" in {location}"
+
+    # Retrieve relevant parts of the resume
+    relevant_chunks = semantic_search_user(query, user_id, top_k=8)
     resume_context = "\n\n".join(relevant_chunks) or resume_text[:4000]
 
     async def generate():
         yield "data: Starting analysis...\n\n"
-        resume_result = await ask_llm(f"Extract key skills, education, and experience from:\n{resume_context}")
-        gap_result = await ask_llm(f"Identify missing skills for {target_role} based on this resume context:\n{resume_context}")
-        course_result = await ask_llm(f"Suggest 3 online courses (title + short reason) to fill these skills gaps:\n{gap_result}")
+
+        # Step 1: Extract key resume details
+        resume_prompt = (
+            f"Extract the key skills, education, and professional experience from this resume. "
+            f"Focus on details relevant to the role of {target_role}"
+        )
+        if company:
+            resume_prompt += f" at {company}"
+        if location:
+            resume_prompt += f" in {location}"
+        resume_prompt += f":\n\n{resume_context}"
+
+        resume_result = await ask_llm(resume_prompt)
+
+        # Step 2: Identify missing skills relative to the target job context
+        gap_prompt = (
+            f"Based on this resume, identify missing or weak skills for the position of {target_role}"
+        )
+        if company:
+            gap_prompt += f" at {company}"
+        if location:
+            gap_prompt += f" in {location}"
+        gap_prompt += f". Resume context:\n\n{resume_context}"
+
+        gap_result = await ask_llm(gap_prompt)
+
+        # Step 3: Suggest courses to close those gaps
+        course_prompt = (
+            f"Suggest 3 online courses (with short reasons) that would help close these skill gaps "
+            f"for a {target_role}"
+        )
+        if company:
+            course_prompt += f" at {company}"
+        if location:
+            course_prompt += f" in {location}"
+        course_prompt += f":\n\n{gap_result}"
+
+        course_result = await ask_llm(course_prompt)
+
         final_data = {
             "resume": resume_result,
             "gaps": gap_result,
             "courses": course_result,
             "resume_id": resume_id,
-            "user_id": user_id
+            "user_id": user_id,
+            "company": company,
+            "location": location,
         }
+
         yield f"data: {json.dumps(final_data)}\n\n"
         yield "data: [DONE]\n\n"
 
