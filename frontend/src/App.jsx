@@ -3,6 +3,7 @@ import { Upload, Loader2, MapPin, LogOut } from "lucide-react";
 import "react-loading-skeleton/dist/skeleton.css";
 import { useNavigate } from "react-router-dom";
 import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
+import Timeline from "./Timeline";
 
 
 export default function App() {
@@ -19,6 +20,7 @@ export default function App() {
   const [streamingRoadmap, setStreamingRoadmap] = useState(false);
   const [hasStreamed, setHasStreamed] = useState(false);
   const [showResults, setShowResults] = useState(false);
+  const [timelineItems, setTimelineItems] = useState([]);
 
   const [company, setCompany] = useState("");
   const navigate = useNavigate();
@@ -173,46 +175,98 @@ export default function App() {
     }
   };
 
+  const parseTimelineFromStream = (text) => {
+    const lines = text.split("\n");
+    const items = [];
+    let currentItem = null;
+
+    lines.forEach((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+
+      // New title
+      if (trimmed.startsWith("**") && trimmed.endsWith("**")) {
+        if (currentItem) items.push(currentItem);
+        currentItem = {
+          id: items.length + 1,
+          title: trimmed.slice(2, -2),
+          description: [],
+        };
+      }
+      // Bullet points (allow both * and -)
+      else if (trimmed.startsWith("* ") || trimmed.startsWith("- ")) {
+        if (currentItem) currentItem.description.push(trimmed.slice(2).trim());
+      }
+      // Regular lines that belong to description
+      else {
+        if (currentItem) currentItem.description.push(trimmed);
+      }
+    });
+
+    if (currentItem) items.push(currentItem);
+    return items;
+  };
+
+
 
   const toggleStep = (step) => {
     setOpenSteps((prev) => ({ ...prev, [step]: !prev[step] }));
     if (!openSteps[step]) scrollToStep(step);
   };
 
-  const handleStreamRoadmap = async () => {
-    if (!targetRole || !results.resume || !userId) return;
+  const handleStreamRoadmap = () => {
+    if (!targetRole || !results.resume) return;
+
     setStreamingText("");
+    setTimelineItems([]);
     setStreamingRoadmap(true);
+    setHasStreamed(false);
 
     const ws = new WebSocket("ws://localhost:8000/ws/roadmap");
 
     ws.onopen = () => {
-      ws.send(
-        JSON.stringify({
-          target_role: targetRole,
-          resume: results.resume,
-          gaps: results.gaps,
-          user_id: userId,
-        })
-      );
-      setOpenSteps((prev) => ({ ...prev, 4: true }));
-      scrollToStep(4);
+      ws.send(JSON.stringify({
+        target_role: targetRole,
+        resume: results.resume,
+        gaps: results.gaps,
+        user_id: userId,
+      }));
     };
 
     ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.token) setStreamingText((prev) => prev + data.token);
-        else if (data.done) setStreamingRoadmap(false);
-      } catch { }
+      const data = JSON.parse(event.data);
+
+      if (data.token) {
+        setStreamingText((prev) => {
+          const newText = prev + data.token;
+          const parsed = parseTimelineFromStream(newText);
+          setTimelineItems(parsed);
+          return newText;
+        });
+      }
+
+      if (data.done) {
+        setStreamingRoadmap(false);
+        setHasStreamed(true);
+        ws.close();
+      }
     };
 
-    ws.onclose = () => setStreamingRoadmap(false);
+    ws.onerror = (err) => {
+      console.error("WebSocket error:", err);
+      setStreamingRoadmap(false);
+    };
 
-    setHasStreamed(true);
+    ws.onclose = () => {
+      setStreamingRoadmap(false);
+    };
   };
 
-  const showStreamButton = results.resume && results.gaps && results.courses && !streamingRoadmap;
+  const showStreamButton = results.resume &&
+    results.gaps &&
+    results.courses &&
+    !streamingRoadmap &&
+    !hasStreamed;
 
   const LoadingSkeleton = () => (
     <div className="flex flex-col gap-2 animate-pulse">
@@ -224,6 +278,41 @@ export default function App() {
     </div>
   );
 
+  const parseRoadmapToTimeline = (text) => {
+    const lines = text.split("\n").map((l) => l.trim());
+
+    const items = [];
+    let currentTitle = "";
+    let currentDesc = [];
+
+    lines.forEach((line) => {
+      if (line.startsWith("**") && line.endsWith("**")) {
+        // New title appears → push previous item
+        if (currentTitle) {
+          items.push({
+            id: items.length + 1,
+            title: currentTitle,
+            description: [...currentDesc],   // <-- FIXED
+          });
+        }
+        currentTitle = line.replace(/\*\*/g, "");
+        currentDesc = [];
+      } else if (line.startsWith("*") && line.endsWith("*")) {
+        currentDesc.push(line.replace(/\*/g, ""));
+      }
+    });
+
+    // Push last
+    if (currentTitle) {
+      items.push({
+        id: items.length + 1,
+        title: currentTitle,
+        description: [...currentDesc],   // <-- FIXED
+      });
+    }
+
+    return items;
+  };
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100 flex flex-col overflow-hidden">
       {/* Header */}
@@ -406,21 +495,24 @@ export default function App() {
                   ref={stepRefs[4]}
                   step={4}
                   title="Career Roadmap"
-                  content={loading ? (
-                    <div className="space-y-3 animate-pulse">
-                      <Skeleton height={20} width="60%" />
-
-                    </div>
-                  ) : (
-                    <div className="flex flex-col gap-2">
-                      {parseOllamaOutput(streamingText) || (streamingRoadmap ? (
-                        <div className="flex items-center gap-2 animate-pulse">
-                          <span className="h-4 w-4 bg-indigo-400 rounded-full animate-bounce" />
-                          <span>Streaming roadmap...</span>
-                        </div>
-                      ) : "")}
-                    </div>
-                  )}
+                  content={
+                    loading ? (
+                      <div className="space-y-3 animate-pulse">
+                        <Skeleton height={20} width="60%" />
+                      </div>
+                    ) : streamingRoadmap ? (
+                      // While streaming
+                      <div className="flex items-center gap-2 animate-pulse">
+                        <span className="h-4 w-4 bg-indigo-400 rounded-full animate-bounce" />
+                        <span>Streaming roadmap...</span>
+                      </div>
+                    ) : streamingText && hasStreamed ? (
+                      // After streaming is finished → show timeline
+                      <Timeline items={timelineItems} />
+                    ) : (
+                      <div className="text-gray-400">Click "Stream Roadmap" to generate your timeline.</div>
+                    )
+                  }
                   open={openSteps[4]}
                   toggle={() => toggleStep(4)}
                   extraButton={
