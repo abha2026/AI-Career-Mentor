@@ -21,6 +21,7 @@ export default function App() {
   const [hasStreamed, setHasStreamed] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [timelineItems, setTimelineItems] = useState([]);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const [company, setCompany] = useState("");
   const navigate = useNavigate();
@@ -42,6 +43,12 @@ export default function App() {
     }, 500);
     return () => clearInterval(interval);
   }, [loading]);
+
+  const handleGenerate = async () => {
+    setIsGenerating(true);
+    await generateRoadmap();
+    setIsGenerating(false);
+  };
 
   // parser
   const parseOllamaOutput = (text) => {
@@ -98,11 +105,15 @@ export default function App() {
 
   useEffect(() => {
     if (!scrollContainerRef.current) return;
-    if (endRef.current) {
-      endRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
-    }
-  }, [streamingText, results]);
 
+    // Only auto-scroll if Step 3 or Step 4 is open
+    if (openSteps[3] || openSteps[4]) {
+      endRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "end",
+      });
+    }
+  }, [streamingText, results, openSteps]);
   // Submit handler
   const handleSubmit = async (e) => {
     e?.preventDefault?.();
@@ -120,6 +131,7 @@ export default function App() {
     setResults({});
     setHasStreamed(false);
     setStreamingText("");
+    setTimelineItems([]);
     setStreamingRoadmap(false);
     setOpenSteps({ 1: true, 2: true, 3: true, 4: true });
     setShowResults(true);
@@ -239,8 +251,8 @@ export default function App() {
       if (data.token) {
         setStreamingText((prev) => {
           const newText = prev + data.token;
-          const parsed = parseTimelineFromStream(newText);
-          setTimelineItems(parsed);
+          const parsed = parseTimelineFromStream(newText); // incremental parse
+          setTimelineItems(parsed); // updates Timeline live
           return newText;
         });
       }
@@ -495,24 +507,26 @@ export default function App() {
                   ref={stepRefs[4]}
                   step={4}
                   title="Career Roadmap"
-                  content={
-                    loading ? (
-                      <div className="space-y-3 animate-pulse">
-                        <Skeleton height={20} width="60%" />
-                      </div>
-                    ) : streamingRoadmap ? (
-                      // While streaming
-                      <div className="flex items-center gap-2 animate-pulse">
-                        <span className="h-4 w-4 bg-indigo-400 rounded-full animate-bounce" />
-                        <span>Streaming roadmap...</span>
-                      </div>
-                    ) : streamingText && hasStreamed ? (
-                      // After streaming is finished → show timeline
+                  content={loading ? (
+                    <div className="space-y-3 animate-pulse">
+                      <Skeleton height={20} width="60%" />
+                      <Skeleton height={12} width="90%" />
+                      <Skeleton height={12} width="85%" />
+                      <Skeleton height={12} width="80%" />
+                      <Skeleton height={12} width="70%" />
+                    </div>
+                  ) : streamingRoadmap ? (
+                    <div className="flex items-center gap-2 animate-pulse">
+                      <span className="h-4 w-4 bg-indigo-400 rounded-full animate-bounce" />
+                      <span>Streaming roadmap...</span>
+                    </div>
+                  ) : timelineItems.length > 0 ? (
+                    <div className="w-full overflow-visible">
                       <Timeline items={timelineItems} />
-                    ) : (
-                      <div className="text-gray-400">Click "Stream Roadmap" to generate your timeline.</div>
-                    )
-                  }
+                    </div>
+                  ) : (
+                    <div className="text-gray-400">Click "Stream Roadmap" to generate your timeline.</div>
+                  )}
                   open={openSteps[4]}
                   toggle={() => toggleStep(4)}
                   extraButton={
@@ -538,6 +552,7 @@ export default function App() {
                     )
                   }
                 />
+
                 <div ref={endRef} />
               </div>
             </SkeletonTheme>
@@ -565,7 +580,12 @@ const AccordionStep = React.forwardRef(({ step, title, content, open, toggle, ex
         <span>{open ? "▲" : "▼"}</span>
       </div>
       {open && (
-        <div ref={contentRef} className="mt-3 text-gray-200 whitespace-pre-wrap break-words overflow-auto max-h-[50vh]">
+        <div
+          ref={contentRef}
+          className={`mt-3 text-gray-200 whitespace-pre-wrap break-words overflow-auto
+    ${step === 3 || step === 4 ? "max-h-none" : "max-h-[50vh]"}
+  `}
+        >
           {extraButton && <div className="mb-3">{extraButton}</div>}
           {content || <span className="animate-pulse">Loading...</span>}
         </div>

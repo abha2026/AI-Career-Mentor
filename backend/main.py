@@ -51,8 +51,9 @@ if PINECONE_INDEX not in pc.list_indexes().names():
         spec=ServerlessSpec(cloud="aws", region="us-east-1")
     )
 index = pc.Index(PINECONE_INDEX)
-embedder = SentenceTransformer("all-MiniLM-L6-v2")
-
+embedder = SentenceTransformer(
+    "sentence-transformers/all-MiniLM-L6-v2"
+)
 # LLM
 llm = ChatOllama(model=OLLAMA_MODEL, stream=True)
 
@@ -288,7 +289,9 @@ async def websocket_roadmap(ws: WebSocket):
             await ws.close()
             return
 
-        retrieved = semantic_search_user(f"roadmap context for {target_role}", user_id, top_k=10)
+        loop = asyncio.get_event_loop()
+        retrieved = await loop.run_in_executor(None, semantic_search_user, f"roadmap context for {target_role}", user_id, 10)
+
         prompt = f"Create a multi-step, actionable roadmap for becoming a {target_role}.\n\nResume summary:\n{resume_summary}\n\nGaps:\n{gaps}\n\nRelevant resume snippets:\n" + "\n\n".join(retrieved)
         async for chunk in llm.astream(prompt):
             await ws.send_json({"token": chunk.content})
