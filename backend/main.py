@@ -16,7 +16,7 @@ from langchain_ollama import ChatOllama
 from sqlalchemy import create_engine, Column, String, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-import datetime
+from datetime import datetime, timezone
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -67,7 +67,7 @@ class User(Base):
     user_id = Column(String, primary_key=True, index=True)
     email = Column(String, unique=True, index=True)
     password_hash = Column(String)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 class ResumeMeta(Base):
     __tablename__ = "resumes"
@@ -75,7 +75,7 @@ class ResumeMeta(Base):
     user_id = Column(String)
     filename = Column(String)
     chunk_ids = Column(String)
-    timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 Base.metadata.create_all(bind=engine)
 
@@ -110,26 +110,53 @@ async def ask_llm_stream(prompt: str, ws_send):
         await ws_send(chunk.content)
 
 def upsert_chunks(user_id: str, resume_id: str, filename: str, chunks: List[str]):
+    # Embed all chunks
     vecs = embedder.encode(chunks, show_progress_bar=False)
+
     items = []
     chunk_ids = []
+
     for i, v in enumerate(vecs):
         cid = f"{user_id}::{resume_id}::{i}"
         chunk_ids.append(cid)
-        meta = {"user_id": user_id, "resume_id": resume_id, "filename": filename, "text": chunks[i][:2000]}
+
+        meta = {
+            "user_id": user_id,
+            "resume_id": resume_id,
+            "filename": filename,
+            "text": chunks[i][:2000]
+        }
+
         items.append((cid, v.tolist(), meta))
+
+    # Upsert into Pinecone
     index.upsert(vectors=items)
-    # save metadata in RDS
+
+    # Save or update metadata in Postgres
     db = SessionLocal()
-    db.add(ResumeMeta(
-        resume_id=resume_id,
-        user_id=user_id,
-        filename=filename,
-        chunk_ids=json.dumps(chunk_ids)
-    ))
+    existing = db.query(ResumeMeta).filter_by(resume_id=resume_id).first()
+
+    if existing:
+        # Overwrite existing metadata entry
+        existing.user_id = user_id
+        existing.filename = filename
+        existing.chunk_ids = json.dumps(chunk_ids)
+        existing.timestamp = datetime.now(timezone.utc)
+    else:
+        # Insert new resume record
+        db.add(ResumeMeta(
+            resume_id=resume_id,
+            user_id=user_id,
+            filename=filename,
+            chunk_ids=json.dumps(chunk_ids),
+            timestamp=datetime.now(timezone.utc)
+        ))
+
     db.commit()
     db.close()
+
     return chunk_ids
+
 
 def cleanup_old_resumes(user_id: str, keep_last: int = 3):
     db = SessionLocal()
@@ -201,7 +228,7 @@ async def analyze_resume(
 
     # Chunking and embedding
     chunks = chunk_text(resume_text, chunk_size=350, overlap=50)
-    resume_id = get_hash(file.filename + str(time.time()))
+    resume_id = get_hash(resume_text)
     upsert_chunks(user_id, resume_id, file.filename, chunks)
     cleanup_old_resumes(user_id, keep_last=3)
 
@@ -213,7 +240,8 @@ async def analyze_resume(
         query += f" in {location}"
 
     # Retrieve relevant parts of the resume
-    relevant_chunks = semantic_search_user(query, user_id, top_k=8)
+    relevant_chunks = semantic_search_user(query, user_id, top_k=5)
+    relevant_chunks = sorted(relevant_chunks)
     resume_context = "\n\n".join(relevant_chunks) or resume_text[:4000]
 
     async def generate():
