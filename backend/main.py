@@ -308,22 +308,46 @@ async def websocket_roadmap(ws: WebSocket):
         data = await ws.receive_text()
         payload = json.loads(data)
         target_role = payload.get("target_role", "")
-        resume_summary = payload.get("resume", "")
-        gaps = payload.get("gaps", "")
+        courses = payload.get("courses", "")
         user_id = payload.get("user_id", "")
+        resume_id = payload.get("resume_id", "")
 
         if not user_id:
             await ws.send_json({"error": "user_id required"})
             await ws.close()
             return
 
-        loop = asyncio.get_event_loop()
-        retrieved = await loop.run_in_executor(None, semantic_search_user, f"roadmap context for {target_role}", user_id, 10)
+        # Use courses + target_role as cache key
+        cache_key = get_hash(f"{resume_id}::{target_role}::{courses}")
+        if cache_key in CACHE:
+            # Stream cached content line by line
+            for chunk in CACHE[cache_key].split("\n"):
+                await ws.send_json({"token": chunk + "\n"})
+            await ws.send_json({"done": True})
+            await ws.close()
+            return
 
-        prompt = f"Create a multi-step, actionable roadmap for becoming a {target_role}.\n\nResume summary:\n{resume_summary}\n\nGaps:\n{gaps}\n\nRelevant resume snippets:\n" + "\n\n".join(retrieved)
+        # Retrieve relevant resume snippets (optional)
+        loop = asyncio.get_event_loop()
+        retrieved = await loop.run_in_executor(
+            None, semantic_search_user, f"roadmap context for {target_role}", user_id, 5
+        )
+
+        prompt = (
+            f"Create a multi-step, actionable roadmap for becoming a {target_role}.\n\n"
+            f"Based solely on these recommended courses:\n{courses}\n\n"
+            f"Relevant resume snippets:\n" + "\n\n".join(retrieved)
+        )
+
+        result_text = ""
         async for chunk in llm.astream(prompt):
             await ws.send_json({"token": chunk.content})
+            result_text += chunk.content
+
+        # Save to cache
+        CACHE[cache_key] = result_text
         await ws.send_json({"done": True})
+
     except Exception as e:
         await ws.send_json({"error": str(e)})
     finally:

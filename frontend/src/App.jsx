@@ -104,6 +104,12 @@ export default function App() {
   };
 
   useEffect(() => {
+    if (results.roadmap) {
+      setHasStreamed(true); // cached roadmap exists
+    }
+  }, [results.roadmap]);
+
+  useEffect(() => {
     if (!scrollContainerRef.current) return;
 
     // Only auto-scroll if Step 3 or Step 4 is open
@@ -251,8 +257,8 @@ export default function App() {
       if (data.token) {
         setStreamingText((prev) => {
           const newText = prev + data.token;
-          const parsed = parseTimelineFromStream(newText); // incremental parse
-          setTimelineItems(parsed); // updates Timeline live
+          const parsed = parseTimelineFromStream(newText);
+          setTimelineItems(parsed);
           return newText;
         });
       }
@@ -260,6 +266,8 @@ export default function App() {
       if (data.done) {
         setStreamingRoadmap(false);
         setHasStreamed(true);
+        // Save final roadmap to results so cached logic works
+        setResults((prev) => ({ ...prev, roadmap: streamingText }));
         ws.close();
       }
     };
@@ -273,6 +281,7 @@ export default function App() {
       setStreamingRoadmap(false);
     };
   };
+
 
   const showStreamButton = results.resume &&
     results.gaps &&
