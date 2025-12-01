@@ -33,18 +33,25 @@
   },
   "jest": {
     "testEnvironment": "jsdom",
-    "transform": {
-      "^.+\\.(js|jsx)$": "babel-jest"
-    },
-    "moduleFileExtensions": [
-      "js",
-      "jsx"
-    ],
     "setupFilesAfterEnv": [
       "<rootDir>/src/setupTests.js"
     ],
+    "collectCoverage": true,
+    "collectCoverageFrom": [
+      "src/**/*.{js,jsx}",
+      "!src/index.jsx",
+      "!src/main.jsx"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "statements": 90,
+        "branches": 90,
+        "functions": 90,
+        "lines": 90
+      }
+    },
     "moduleNameMapper": {
-      "\\.(css|less|scss)$": "identity-obj-proxy"
+      "\\.(css|less|scss|sass)$": "<rootDir>/__mocks__/styleMock.js"
     }
   }
 }

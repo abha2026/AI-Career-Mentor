@@ -368,7 +368,7 @@ export default function App() {
               <label className="cursor-pointer flex flex-col items-center border-2 border-dashed border-gray-600 p-6 rounded-xl hover:border-indigo-400 transition text-center">
                 <Upload className="w-8 h-8 text-indigo-400 mb-2" />
                 <span>{file ? file.name : "Click to upload resume (PDF)"}</span>
-                <input type="file" accept="application/pdf" className="hidden" onChange={(e) => setFile(e.target.files[0])} />
+                <input aria-label="resume upload" type="file" accept="application/pdf" className="hidden" onChange={(e) => setFile(e.target.files[0])} />
               </label>
 
               <input
@@ -422,7 +422,7 @@ export default function App() {
               <label className="cursor-pointer flex flex-col items-center border-2 border-dashed border-gray-600 p-6 rounded-xl hover:border-indigo-400 transition text-center">
                 <Upload className="w-8 h-8 text-indigo-400 mb-2" />
                 <span>{file ? file.name : "Click to upload resume (PDF)"}</span>
-                <input type="file" accept="application/pdf" className="hidden" onChange={(e) => setFile(e.target.files[0])} />
+                <input aria-label="resume upload" type="file" accept="application/pdf" className="hidden" onChange={(e) => setFile(e.target.files[0])} />
               </label>
 
               <input
