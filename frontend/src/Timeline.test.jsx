@@ -25,7 +25,6 @@ describe("Timeline Component", () => {
         expect(screen.getByText("Content 1a")).toBeInTheDocument();
         expect(screen.getByText("Content 1b")).toBeInTheDocument();
 
-        // Click Step 1 again → should hide
         fireEvent.click(screen.getByText("Step 1"));
         expect(screen.queryByText("Content 1a")).not.toBeInTheDocument();
         expect(screen.queryByText("Content 1b")).not.toBeInTheDocument();
@@ -34,7 +33,7 @@ describe("Timeline Component", () => {
     test("clicking the circle toggles the step description", () => {
         render(<Timeline items={mockItems} />);
 
-        const circle = screen.getByText("2"); // circle with item.id
+        const circle = screen.getByText("2");
         fireEvent.click(circle);
         expect(screen.getByText("Content 2a")).toBeInTheDocument();
         expect(screen.getByText("Content 2b")).toBeInTheDocument();
@@ -43,14 +42,12 @@ describe("Timeline Component", () => {
     test("only one step is open at a time", () => {
         render(<Timeline items={mockItems} />);
 
-        // Open Step 1
         fireEvent.click(screen.getByText("Step 1"));
         expect(screen.getByText("Content 1a")).toBeInTheDocument();
 
-        // Open Step 2
         fireEvent.click(screen.getByText("Step 2"));
         expect(screen.getByText("Content 2a")).toBeInTheDocument();
-        // Step 1 should be closed
+
         expect(screen.queryByText("Content 1a")).not.toBeInTheDocument();
     });
 });

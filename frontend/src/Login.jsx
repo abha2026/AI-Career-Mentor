@@ -3,24 +3,42 @@ import { useNavigate, Link } from "react-router-dom";
 import { LogIn } from "lucide-react";
 import { loginUser } from "./api";
 
+
+export const validateLogin = (userId, password) => {
+    if (!userId || !password) return "Fill all fields";
+    return null;
+};
+
+
+export const handleLoginWrapper = async (
+    userId,
+    password,
+    loginUserFn,
+    navigateFn,
+    alertFn
+) => {
+    const error = validateLogin(userId, password);
+    if (error) return alertFn(error);
+
+    try {
+        const res = await loginUserFn(userId, password);
+        if (res.status === 200) {
+            localStorage.setItem("userId", userId);
+            navigateFn("/dashboard");
+        }
+        // else do nothing
+    } catch (err) {
+        alertFn(err.response?.data?.detail || "Login failed");
+    }
+};
+
 export default function Login() {
     const [userId, setUserId] = useState("");
     const [password, setPassword] = useState("");
     const navigate = useNavigate();
 
-    const handleLogin = async (e) => {
-        e.preventDefault();
-        if (!userId || !password) return alert("Fill all fields");
-        try {
-            const res = await loginUser(userId, password);
-            if (res.status === 200) {
-                localStorage.setItem("userId", userId);
-                navigate("/dashboard");
-            }
-        } catch (err) {
-            alert(err.response?.data?.detail || "Login failed");
-        }
-    };
+    const handleLogin = (e) =>
+        handleLoginWrapper(userId, password, loginUser, navigate, alert).then();
 
     return (
         <div className="min-h-screen flex flex-col bg-gray-900 text-gray-100">
@@ -40,7 +58,7 @@ export default function Login() {
                 <div className="w-full max-w-md bg-gray-800 border border-gray-700 rounded-2xl shadow-2xl p-8">
                     <h2 className="text-2xl font-bold text-center text-indigo-400 mb-6">Welcome Back</h2>
 
-                    <form onSubmit={handleLogin} className="space-y-5">
+                    <form onSubmit={(e) => { e.preventDefault(); handleLogin(e); }} className="space-y-5">
                         <input
                             type="text"
                             placeholder="User ID"

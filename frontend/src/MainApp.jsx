@@ -2,7 +2,7 @@ import { Routes, Route } from "react-router-dom";
 import Home from "./Home";
 import Login from "./Login";
 import Signup from "./Signup";
-import App from "./App.jsx"; // Dashboard
+import App from "./App.jsx";
 import ProtectedRoute from "./ProtectedRoute.jsx";
 
 export default function MainApp() {
@@ -12,7 +12,7 @@ export default function MainApp() {
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
 
-            {/* Protect dashboard */}
+
             <Route
                 path="/dashboard"
                 element={

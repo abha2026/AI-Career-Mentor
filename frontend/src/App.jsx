@@ -5,8 +5,41 @@ import { useNavigate } from "react-router-dom";
 import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
 import Timeline from "./Timeline";
 
+export function parseRoadmapToTimeline(text) {
+  const lines = text.split("\n").map((l) => l.trim());
 
-export default function App() {
+  const items = [];
+  let currentTitle = "";
+  let currentDesc = [];
+
+  lines.forEach((line) => {
+    if (line.startsWith("**") && line.endsWith("**")) {
+      if (currentTitle) {
+        items.push({
+          id: items.length + 1,
+          title: currentTitle,
+          description: [...currentDesc],
+        });
+      }
+      currentTitle = line.replace(/\*\*/g, "");
+      currentDesc = [];
+    } else if (line.startsWith("*") && line.endsWith("*")) {
+      currentDesc.push(line.replace(/\*/g, ""));
+    }
+  });
+
+  if (currentTitle) {
+    items.push({
+      id: items.length + 1,
+      title: currentTitle,
+      description: [...currentDesc],
+    });
+  }
+
+  return items;
+}
+
+function App() {
   const [file, setFile] = useState(null);
   const [targetRole, setTargetRole] = useState("");
   const [location, setLocation] = useState("");
@@ -16,14 +49,19 @@ export default function App() {
   const [error, setError] = useState("");
   const [streamingText, setStreamingText] = useState("");
   const [dots, setDots] = useState("");
-  const [openSteps, setOpenSteps] = useState({ 1: false, 2: false, 3: false, 4: false });
+  const [openSteps, setOpenSteps] = useState({
+    1: false,
+    2: false,
+    3: false,
+    4: false,
+  });
   const [streamingRoadmap, setStreamingRoadmap] = useState(false);
   const [hasStreamed, setHasStreamed] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [timelineItems, setTimelineItems] = useState([]);
   const [isGenerating, setIsGenerating] = useState(false);
-
   const [company, setCompany] = useState("");
+
   const navigate = useNavigate();
 
   const stepRefs = {
@@ -35,7 +73,6 @@ export default function App() {
   const scrollContainerRef = useRef(null);
   const endRef = useRef(null);
 
-  // dots animation
   useEffect(() => {
     if (!loading) return;
     const interval = setInterval(() => {
@@ -44,13 +81,6 @@ export default function App() {
     return () => clearInterval(interval);
   }, [loading]);
 
-  const handleGenerate = async () => {
-    setIsGenerating(true);
-    await generateRoadmap();
-    setIsGenerating(false);
-  };
-
-  // parser
   const parseOllamaOutput = (text) => {
     if (!text) return null;
     const lines = text.split("\n");
@@ -93,26 +123,29 @@ export default function App() {
     localStorage.removeItem("userId");
     navigate("/login");
   };
+
   const scrollToStep = (step) => {
     const container = scrollContainerRef.current;
     const el = stepRefs[step]?.current;
     if (!container || !el) return;
     const containerRect = container.getBoundingClientRect();
     const elRect = el.getBoundingClientRect();
-    const top = container.scrollTop + (elRect.top - containerRect.top);
-    container.scrollTo({ top: Math.max(0, top - 16), behavior: "smooth" });
+    const top =
+      container.scrollTop + (elRect.top - containerRect.top);
+    container.scrollTo({
+      top: Math.max(0, top - 16),
+      behavior: "smooth",
+    });
   };
 
   useEffect(() => {
     if (results.roadmap) {
-      setHasStreamed(true); // cached roadmap exists
+      setHasStreamed(true);
     }
   }, [results.roadmap]);
 
   useEffect(() => {
     if (!scrollContainerRef.current) return;
-
-    // Only auto-scroll if Step 3 or Step 4 is open
     if (openSteps[3] || openSteps[4]) {
       endRef.current?.scrollIntoView({
         behavior: "smooth",
@@ -120,19 +153,20 @@ export default function App() {
       });
     }
   }, [streamingText, results, openSteps]);
-  // Submit handler
+
   const handleSubmit = async (e) => {
     e?.preventDefault?.();
     setError("");
 
     const storedUserId = localStorage.getItem("userId");
     if (!file || !targetRole || !storedUserId) {
-      setError("Please upload a resume and enter your target role.");
+      setError(
+        "Please upload a resume and enter your target role."
+      );
       return;
     }
 
     setUserId(storedUserId);
-
     setLoading(true);
     setResults({});
     setHasStreamed(false);
@@ -146,9 +180,8 @@ export default function App() {
     formData.append("file", file);
     formData.append("target_role", targetRole);
     formData.append("location", location);
-    formData.append("user_id", storedUserId); // send user ID from signup/login
+    formData.append("user_id", storedUserId);
     formData.append("company", company);
-
 
     try {
       const res = await fetch("http://localhost:8000/analyze/", {
@@ -172,18 +205,21 @@ export default function App() {
           if (!msg.startsWith("data:")) return;
           const data = msg.replace(/^data: /, "").trim();
           if (data === "[DONE]") return;
-
           try {
             const json = JSON.parse(data);
             setResults((prev) => ({ ...prev, ...json }));
             if (json.resume || json.gaps || json.courses) {
               setShowResults(true);
             }
-
-            if (json.resume) setOpenSteps((prev) => ({ ...prev, 1: true }));
-            if (json.gaps) setOpenSteps((prev) => ({ ...prev, 2: true }));
-            if (json.courses) setOpenSteps((prev) => ({ ...prev, 3: true }));
-          } catch { }
+            if (json.resume)
+              setOpenSteps((prev) => ({ ...prev, 1: true }));
+            if (json.gaps)
+              setOpenSteps((prev) => ({ ...prev, 2: true }));
+            if (json.courses)
+              setOpenSteps((prev) => ({ ...prev, 3: true }));
+          } catch {
+            /* ignore bad chunks */
+          }
         });
       }
     } catch (err) {
@@ -201,8 +237,6 @@ export default function App() {
     lines.forEach((line) => {
       const trimmed = line.trim();
       if (!trimmed) return;
-
-      // New title
       if (trimmed.startsWith("**") && trimmed.endsWith("**")) {
         if (currentItem) items.push(currentItem);
         currentItem = {
@@ -210,13 +244,13 @@ export default function App() {
           title: trimmed.slice(2, -2),
           description: [],
         };
-      }
-      // Bullet points (allow both * and -)
-      else if (trimmed.startsWith("* ") || trimmed.startsWith("- ")) {
-        if (currentItem) currentItem.description.push(trimmed.slice(2).trim());
-      }
-      // Regular lines that belong to description
-      else {
+      } else if (
+        trimmed.startsWith("* ") ||
+        trimmed.startsWith("- ")
+      ) {
+        if (currentItem)
+          currentItem.description.push(trimmed.slice(2).trim());
+      } else {
         if (currentItem) currentItem.description.push(trimmed);
       }
     });
@@ -224,8 +258,6 @@ export default function App() {
     if (currentItem) items.push(currentItem);
     return items;
   };
-
-
 
   const toggleStep = (step) => {
     setOpenSteps((prev) => ({ ...prev, [step]: !prev[step] }));
@@ -240,15 +272,19 @@ export default function App() {
     setStreamingRoadmap(true);
     setHasStreamed(false);
 
-    const ws = new WebSocket("ws://localhost:8000/ws/roadmap");
+    const ws = new WebSocket(
+      "ws://localhost:8000/ws/roadmap"
+    );
 
     ws.onopen = () => {
-      ws.send(JSON.stringify({
-        target_role: targetRole,
-        resume: results.resume,
-        gaps: results.gaps,
-        user_id: userId,
-      }));
+      ws.send(
+        JSON.stringify({
+          target_role: targetRole,
+          resume: results.resume,
+          gaps: results.gaps,
+          user_id: userId,
+        })
+      );
     };
 
     ws.onmessage = (event) => {
@@ -266,14 +302,15 @@ export default function App() {
       if (data.done) {
         setStreamingRoadmap(false);
         setHasStreamed(true);
-        // Save final roadmap to results so cached logic works
-        setResults((prev) => ({ ...prev, roadmap: streamingText }));
+        setResults((prev) => ({
+          ...prev,
+          roadmap: streamingText,
+        }));
         ws.close();
       }
     };
 
-    ws.onerror = (err) => {
-      console.error("WebSocket error:", err);
+    ws.onerror = () => {
       setStreamingRoadmap(false);
     };
 
@@ -282,58 +319,14 @@ export default function App() {
     };
   };
 
-
-  const showStreamButton = results.resume &&
+  const showStreamButton =
+    results.resume &&
     results.gaps &&
     results.courses &&
     !streamingRoadmap &&
     !hasStreamed;
 
-  const LoadingSkeleton = () => (
-    <div className="flex flex-col gap-2 animate-pulse">
-      <div className="h-5 w-3/5 bg-gray-700 rounded"></div>
-      <div className="h-4 w-11/12 bg-gray-700 rounded"></div>
-      <div className="h-4 w-10/12 bg-gray-700 rounded"></div>
-      <div className="h-4 w-9/12 bg-gray-700 rounded"></div>
-      <div className="h-4 w-7/12 bg-gray-700 rounded"></div>
-    </div>
-  );
 
-  const parseRoadmapToTimeline = (text) => {
-    const lines = text.split("\n").map((l) => l.trim());
-
-    const items = [];
-    let currentTitle = "";
-    let currentDesc = [];
-
-    lines.forEach((line) => {
-      if (line.startsWith("**") && line.endsWith("**")) {
-        // New title appears → push previous item
-        if (currentTitle) {
-          items.push({
-            id: items.length + 1,
-            title: currentTitle,
-            description: [...currentDesc],   // <-- FIXED
-          });
-        }
-        currentTitle = line.replace(/\*\*/g, "");
-        currentDesc = [];
-      } else if (line.startsWith("*") && line.endsWith("*")) {
-        currentDesc.push(line.replace(/\*/g, ""));
-      }
-    });
-
-    // Push last
-    if (currentTitle) {
-      items.push({
-        id: items.length + 1,
-        title: currentTitle,
-        description: [...currentDesc],   // <-- FIXED
-      });
-    }
-
-    return items;
-  };
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100 flex flex-col overflow-hidden">
       {/* Header */}
@@ -602,3 +595,5 @@ const AccordionStep = React.forwardRef(({ step, title, content, open, toggle, ex
     </div>
   );
 });
+
+export default App;

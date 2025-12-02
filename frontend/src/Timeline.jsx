@@ -7,7 +7,7 @@ export default function Timeline({ items }) {
 
     return (
         <div className="relative w-full py-10">
-            {/* Vertical line */}
+
             <div className="absolute left-1/2 top-0 w-1 bg-indigo-600 h-full transform -translate-x-1/2"></div>
 
             {items.map((item, index) => {
@@ -15,7 +15,7 @@ export default function Timeline({ items }) {
 
                 return (
                     <div key={item.id} className="relative mb-16 flex items-center w-full">
-                        {/* Title on left or right */}
+
                         <div className={`w-1/2 flex ${isLeft ? "justify-end pr-8" : "justify-start pl-8"}`}>
                             {isLeft && (
                                 <div

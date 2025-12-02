@@ -1,39 +1,59 @@
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import '@testing-library/jest-dom';
+import { MemoryRouter } from "react-router-dom";
 import MainApp from "./MainApp";
 
-jest.mock("./api", () => ({
-    getRoadmap: jest.fn(),
-}));
 
-import { getRoadmap } from "./api";
+jest.mock("./ProtectedRoute.jsx", () => ({ children }) => <>{children}</>);
+
+
+jest.mock("./App.jsx", () => () => <div>Dashboard App</div>);
+
+
+jest.mock("./Home", () => () => <div>Home Page</div>);
+jest.mock("./Login", () => () => <div>Login Page</div>);
+jest.mock("./Signup", () => () => <div>Signup Page</div>);
 
 describe("MainApp Component", () => {
-    beforeEach(() => {
-        jest.clearAllMocks();
-        localStorage.setItem("token", "abc");
+
+    test("renders Home route by default", () => {
+        render(
+            <MemoryRouter initialEntries={["/"]}>
+                <MainApp />
+            </MemoryRouter>
+        );
+
+        expect(screen.getByText("Home Page")).toBeInTheDocument();
     });
 
-    test("renders main app with form inputs", () => {
-        render(<MainApp />);
-        expect(screen.getByPlaceholderText(/Target Role/i)).toBeInTheDocument();
-        expect(screen.getByText(/Generate Roadmap/i)).toBeInTheDocument();
+    test("renders Login route", () => {
+        render(
+            <MemoryRouter initialEntries={["/login"]}>
+                <MainApp />
+            </MemoryRouter>
+        );
+
+        expect(screen.getByText("Login Page")).toBeInTheDocument();
     });
 
-    test("form submission triggers API call", async () => {
-        getRoadmap.mockResolvedValue({ steps: ["Step1", "Step2"] });
-        render(<MainApp />);
-        fireEvent.change(screen.getByPlaceholderText(/Target Role/i), { target: { value: "Software Engineer" } });
-        fireEvent.click(screen.getByText(/Generate Roadmap/i));
+    test("renders Signup route", () => {
+        render(
+            <MemoryRouter initialEntries={["/signup"]}>
+                <MainApp />
+            </MemoryRouter>
+        );
 
-        await waitFor(() => expect(getRoadmap).toHaveBeenCalled());
-        await waitFor(() => expect(screen.getByText(/Step1/i)).toBeInTheDocument());
+        expect(screen.getByText("Signup Page")).toBeInTheDocument();
     });
 
-    test("shows error if target role empty", () => {
-        render(<MainApp />);
-        fireEvent.click(screen.getByText(/Generate Roadmap/i));
-        expect(screen.getByText(/Please enter a target role/i)).toBeInTheDocument();
+    test("renders Dashboard route with ProtectedRoute", () => {
+        render(
+            <MemoryRouter initialEntries={["/dashboard"]}>
+                <MainApp />
+            </MemoryRouter>
+        );
+
+        expect(screen.getByText("Dashboard App")).toBeInTheDocument();
     });
 });

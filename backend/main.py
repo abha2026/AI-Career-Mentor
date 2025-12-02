@@ -126,8 +126,8 @@ def upsert_chunks(user_id: str, resume_id: str, filename: str, chunks: List[str]
             "filename": filename,
             "text": chunks[i][:2000]
         }
-
-        items.append((cid, v.tolist(), meta))
+        vector_list = v if isinstance(v, list) else v.tolist()
+        items.append((cid, vector_list, meta))
 
     # Upsert into Pinecone
     index.upsert(vectors=items)

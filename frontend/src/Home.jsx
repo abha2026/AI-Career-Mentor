@@ -11,9 +11,6 @@ export default function Home() {
                 >
                     AI Career Mentor
                 </h1>
-                {/* <p className="text-gray-300 text-lg mt-2 max-w-xl mx-auto">
-                    Personalized AI-powered career GPS to help you map your next move.
-                </p> */}
 
                 {/* Decorative shapes */}
                 <div className="absolute bottom-0 left-1/2 -translate-x-1/2 flex gap-2">
@@ -23,7 +20,7 @@ export default function Home() {
                 </div>
             </header>
 
-            {/* Main CTA */}
+
             <main className="flex flex-1 flex-col items-center justify-center px-6 py-12">
                 <p className="text-gray-400 max-w-2xl text-center text-lg md:text-xl">
                     Explore your personalized roadmap, uncover skill gaps, and get tailored career guidance.

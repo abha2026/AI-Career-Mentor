@@ -5,7 +5,7 @@ import ProtectedRoute from "./ProtectedRoute";
 import { MemoryRouter } from "react-router-dom";
 import { Navigate } from "react-router-dom";
 
-// Mock Navigate to inspect rendering
+
 jest.mock("react-router-dom", () => ({
     ...jest.requireActual("react-router-dom"),
     Navigate: jest.fn(() => null),
@@ -37,12 +37,12 @@ describe("ProtectedRoute Component", () => {
                 </ProtectedRoute>
             </MemoryRouter>
         );
-        // Navigate should be called
+
         expect(Navigate).toHaveBeenCalledWith(
             { to: "/login", replace: true },
             {}
         );
-        // Children should not render
+
         expect(screen.queryByText(/Protected Content/i)).not.toBeInTheDocument();
     });
 });

@@ -3,7 +3,7 @@ import Signup from "./Signup";
 import { MemoryRouter } from "react-router-dom";
 import { signupUser } from "./api";
 
-// Mock useNavigate
+
 const mockNavigate = jest.fn();
 jest.mock("react-router-dom", () => ({
     ...jest.requireActual("react-router-dom"),
